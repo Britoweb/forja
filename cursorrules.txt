@@ -1,0 +1,130 @@
+# Regras de engenharia — FORJA
+
+Estas regras se aplicam a QUALQUER código gerado ou editado neste projeto.
+Não são sugestões — são o padrão mínimo aceitável. Se um pedido do usuário
+conflitar com uma regra abaixo, siga a regra e avise o motivo em 1 linha.
+
+Contexto do produto: ver docs/SPEC.md. Não invente arquitetura diferente da
+documentada lá (schema, versionamento de quests, XP ledger, SM-2) sem
+avisar explicitamente que está propondo uma mudança.
+
+## 1. Mobile-first, sempre
+
+- Escreva CSS partindo do layout mobile (~360-390px) e use `min-width`
+  media queries para expandir — nunca o contrário.
+- Nenhum componente pode depender de hover como único mecanismo de
+  interação (celular não tem hover).
+- Área de toque mínima: 44x44px para qualquer elemento clicável.
+- Teste mentalmente em 360px de largura antes de considerar um componente
+  pronto.
+
+## 2. Acessibilidade (não é opcional, é requisito de aceite)
+
+- Todo elemento interativo não-nativo (div clicável, ícone-botão) precisa
+  de `role` e `aria-label` apropriados. Prefira sempre o elemento HTML
+  nativo (`<button>`, `<a>`) a recriar comportamento com `<div onClick>`.
+- Toda imagem tem `alt`. Decorativa: `alt=""` e `aria-hidden="true"`.
+- Formulários: todo `<input>` tem `<label>` associado (via `htmlFor`/`id`
+  ou `aria-label`). Erros de validação são anunciados via
+  `aria-describedby` + `role="alert"`, não só cor.
+- Navegação por teclado: todo fluxo tem que funcionar sem mouse. Ordem de
+  tab lógica. `:focus-visible` sempre visível (nunca `outline: none` sem
+  substituto).
+- Hierarquia de headings (`h1`→`h2`→`h3`) sequencial, nunca pulando nível
+  por motivo estético.
+- Contraste automático: nunca hardcode cor de texto sobre fundo colorido.
+  Use os tokens de `docs/DESIGN_TOKENS.md` — eles já garantem contraste
+  mínimo AA (4.5:1 texto normal, 3:1 texto grande/ícones).
+- Componentes com estado (modais, toggles, tabs) usam os padrões ARIA
+  correspondentes (`aria-expanded`, `aria-selected`, `aria-modal`, foco
+  preso em modal aberto, `Escape` fecha).
+- Reduced motion: qualquer animação >0.1s respeita
+  `prefers-reduced-motion: reduce`.
+
+## 3. Performance / métricas-alvo
+
+Este projeto roda em dados sensíveis e precisa ser confiável em conexão
+ruim (celular, 3G ocasional). Metas mínimas (Lighthouse mobile):
+
+- Performance ≥ 90
+- Accessibility ≥ 95
+- Best Practices ≥ 95
+- PWA installable = sim
+
+Regras práticas:
+- Nenhum bundle de rota inicial > 200KB gzip. Lazy-load telas que não são
+  a primeira tela (dashboard).
+- Imagens sempre em formato moderno (WebP/AVIF) com `width`/`height`
+  explícitos (evita layout shift).
+- Nenhuma query ao Supabase sem índice correspondente (ver `schema.sql`)
+  — se criar uma query nova com filtro/ordenação, adicione o índice junto.
+- Debounce em qualquer input que dispare busca/validação remota (300ms).
+- IndexedDB (Dexie) é a fonte de verdade para leitura offline — não
+  bloqueie a UI esperando rede quando há cache local válido.
+
+## 4. Estrutura e padronização de código
+
+- Componentes React: um componente por arquivo, nome do arquivo = nome do
+  componente (`QuestCard.jsx`, não `quest-card.jsx`).
+- Hooks customizados em `src/hooks/`, prefixo `use`.
+- Lógica de negócio (cálculo de XP, SM-2, regras de detecção) fica em
+  `src/lib/`, nunca dentro do componente — componentes só orquestram e
+  renderizam.
+- Nada de lógica de acesso a dados espalhada — toda chamada ao Supabase
+  passa por `src/lib/api/*.js` (um arquivo por entidade: `quests.js`,
+  `reflections.js`, etc.), nunca `supabase.from(...)` direto dentro de um
+  componente.
+- Nomes em português para conteúdo voltado ao usuário (textos, labels);
+  nomes em inglês para código (variáveis, funções, tabelas — já é o padrão
+  do schema.sql).
+- Sem `any` implícito se o projeto migrar para TypeScript no futuro — hoje
+  é JS puro, mas escreva JSDoc nos módulos de `src/lib/` para facilitar
+  essa migração depois.
+
+## 5. Commits
+
+Conventional Commits, sempre em português no corpo, tipo em inglês:
+
+```
+<tipo>(<escopo>): <resumo curto no imperativo>
+
+[corpo opcional explicando o porquê, não o o quê]
+```
+
+Tipos permitidos: `feat`, `fix`, `refactor`, `perf`, `a11y`, `docs`,
+`test`, `chore`, `style`.
+
+Exemplos:
+```
+feat(quests): adiciona evolução automática de tier por streak
+a11y(flashcards): corrige foco preso no modal de revisão
+fix(sm2): corrige cálculo de ease_factor abaixo do mínimo
+perf(dashboard): lazy-load da biblioteca fora da rota inicial
+```
+
+Regras:
+- Um commit = uma mudança coerente. Não misture `feat` com `fix` não
+  relacionado no mesmo commit.
+- Escopo = a pasta/domínio afetado (`quests`, `flashcards`, `reflections`,
+  `detection`, `pwa`, `auth`).
+- Nunca commitar `.env`, chaves, ou dados de usuário reais de teste.
+
+## 6. Segurança (checklist antes de qualquer PR/merge)
+
+- [ ] Toda tabela nova tem RLS habilitado + policy `own_*` correspondente
+- [ ] Nenhuma chamada usa `service_role key` no frontend
+- [ ] Nenhum dado sensível (reflexões, flags) vai para `console.log` em
+      produção
+- [ ] Inputs de usuário sanitizados antes de renderizar como HTML (se
+      algum dia houver rich text)
+- [ ] `.env` está no `.gitignore` (já está — não remova)
+
+## 7. Antes de considerar uma feature "pronta"
+
+- [ ] Funciona em 360px de largura
+- [ ] Navegável 100% por teclado
+- [ ] Passa Lighthouse mobile com as metas da seção 3
+- [ ] Segue o schema/arquitetura de `docs/SPEC.md` (ou justifica o desvio)
+- [ ] Tem pelo menos 1 commit com mensagem seguindo a seção 5
+- [ ] Se mexeu em regra de detecção ou XP, atualizou o doc correspondente
+      em `docs/`

@@ -1,0 +1,43 @@
+---
+description: Padrões de engenharia FORJA — mobile-first, a11y, API layer, commits
+alwaysApply: true
+---
+
+# Regras de engenharia — FORJA
+
+Contexto do produto: ver `docs/SPEC.md`. Não invente arquitetura diferente (schema, versionamento de quests, XP ledger, SM-2) sem avisar.
+
+## Mobile-first
+- CSS mobile (~360px) primeiro; `min-width` para expandir.
+- Hover nunca é o único mecanismo de interação.
+- Área de toque mínima: 44×44px.
+- Design tokens: `docs/DESIGN_TOKENS.md` — nunca hex solto em componentes.
+- A11y por componente: `docs/ACCESSIBILITY_CHECKLIST.md`.
+
+## Acessibilidade (requisito de aceite)
+- Preferir `<button>`/`<a>` nativos; `role` + `aria-label` se não-nativo.
+- Formulários: `<label htmlFor>`, erros com `aria-describedby` + `role="alert"`.
+- `:focus-visible` sempre visível; headings sequenciais h1→h2→h3.
+- `prefers-reduced-motion: reduce` para animações >0.1s.
+
+## Performance
+- Bundle inicial ≤200KB gzip; lazy-load rotas não-iniciais.
+- Supabase: toda query com índice em `schema.sql`; novo filtro = novo índice.
+- Dexie é/online: não bloquear UI esperando rede com cache válido.
+
+## Estrutura
+- Componentes: `ComponentName.jsx` em `src/components/` ou `src/pages/`.
+- Hooks: `src/hooks/use*.js`.
+- Lógica de negócio: `src/lib/` (xp, sm2, detecção).
+- **Supabase só em `src/lib/api/*.js`** — nunca `supabase.from()` em componentes.
+- Textos UI em português; código em inglês.
+
+## Commits (Conventional Commits)
+```
+<tipo>(<escopo>): <resumo imperativo>
+```
+Tipos: `feat`, `fix`, `refactor`, `perf`, `a11y`, `docs`, `test`, `chore`, `style`.
+
+## Antes de dar feature por pronta
+- Funciona em 360px; navegável por teclado; Lighthouse mobile (Perf≥90, A11y≥95).
+- RLS em tabelas novas; nunca `service_role` no frontend; nunca `.env` no git.
