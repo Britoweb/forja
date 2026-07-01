@@ -6,6 +6,9 @@ import DashboardPage from './pages/DashboardPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 
 const QuestsPage = lazy(() => import('./pages/QuestsPage.jsx'));
+const FlashcardsPage = lazy(() => import('./pages/FlashcardsPage.jsx'));
+const ReflectionsPage = lazy(() => import('./pages/ReflectionsPage.jsx'));
+const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
 
 function PageLoader() {
   return (
@@ -32,6 +35,30 @@ export default function App() {
           element={
             <Suspense fallback={<PageLoader />}>
               <QuestsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="flashcards"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <FlashcardsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="reflections"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ReflectionsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="report"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <ReportPage />
             </Suspense>
           }
         />

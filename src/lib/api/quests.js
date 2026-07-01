@@ -1,8 +1,12 @@
 import {
   buildEvolvedDefinition,
-  isEligibleForEvolution,
+  evaluatePeriod,
+  expectedCompletionsInWindow,
+  getVersionPeriodDays,
+  getVersionPeriodStart,
   xpForCompletion
 } from '../quests.js';
+import { getSuccessThreshold } from '../habitFrameworks.js';
 import { getSupabase } from '../supabaseClient.js';
 
 /**
@@ -92,7 +96,16 @@ export async function createQuest(userId, input) {
       tier: 1,
       definition: {
         target: input.target,
-        validation: input.validation ?? null
+        validation: input.validation ?? null,
+        framework: input.framework ?? 'custom',
+        timeSlot: input.timeSlot ?? 'anytime',
+        wakeDependent: Boolean(input.wakeDependent),
+        presetId: input.presetId ?? null,
+        tradition: input.tradition ?? null,
+        source: input.source ?? null,
+        ...(input.frameworkFields && Object.keys(input.frameworkFields).length
+          ? { frameworkFields: input.frameworkFields }
+          : {})
       },
       streak_required_to_evolve: input.streakRequired ?? 28
     })
@@ -152,20 +165,108 @@ export async function completeQuest({
 
   if (xpError) throw xpError;
 
-  const allCompletions = [completion, ...completions];
-  const eligible = isEligibleForEvolution(
-    allCompletions,
-    quest.quest_type,
-    version.streak_required_to_evolve,
-    version.tier
+  return { completion, xpEntry, evolved: false };
+}
+
+/**
+ * @param {object} params
+ */
+export async function recordQuestMiss({ userId, quest, version, reasonCode, reasonLabel }) {
+  const today = new Date().toDateString();
+
+  const { data: todayRows, error: checkError } = await getSupabase()
+    .from('quest_completions')
+    .select('id, evidence, completed_at')
+    .eq('quest_version_id', version.id)
+    .gte('completed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString());
+
+  if (checkError) throw checkError;
+
+  const hasEntryToday = (todayRows ?? []).some(
+    (row) => new Date(row.completed_at).toDateString() === today
   );
 
-  if (!eligible) {
-    return { completion, xpEntry, evolved: false };
+  if (hasEntryToday) {
+    throw new Error('Já existe um registro para esta quest hoje.');
   }
 
-  const evolution = await evolveQuestVersion(quest, version);
-  return { completion, xpEntry, evolved: true, evolution };
+  const { data: miss, error: missError } = await getSupabase()
+    .from('quest_completions')
+    .insert({
+      quest_version_id: version.id,
+      user_id: userId,
+      completed_at: new Date().toISOString(),
+      evidence: {
+        type: 'miss',
+        reasonCode,
+        reasonLabel,
+        timeSlot: version.definition?.timeSlot ?? 'anytime',
+        wakeDependent: version.definition?.wakeDependent ?? false
+      },
+      xp_awarded: 0,
+      flagged: false
+    })
+    .select()
+    .single();
+
+  if (missError) throw missError;
+
+  return { miss, questTitle: quest.title };
+}
+
+/**
+ * @param {object} quest
+ * @param {object} version
+ * @param {object[]} completions
+ */
+export async function acceptPeriodEvolution(quest, version, completions) {
+  const evaluation = evaluatePeriod(completions, quest, version);
+  if (!evaluation.canEvolve) {
+    throw new Error('Esta quest ainda não atingiu os critérios para evoluir.');
+  }
+  return evolveQuestVersion(quest, version);
+}
+
+/**
+ * Recomeça o ciclo no mesmo tier com novo período.
+ * @param {object} quest
+ * @param {object} version
+ */
+export async function restartQuestPeriod(quest, version) {
+  const now = new Date().toISOString();
+
+  const { error: closeError } = await getSupabase()
+    .from('quest_versions')
+    .update({ ended_at: now })
+    .eq('id', version.id);
+
+  if (closeError) throw closeError;
+
+  const restarts = (version.definition?.periodRestartCount ?? 0) + 1;
+  const definition = {
+    ...version.definition,
+    periodRestartCount: restarts
+  };
+
+  const { data: newVersion, error: createError } = await getSupabase()
+    .from('quest_versions')
+    .insert({
+      quest_id: quest.id,
+      tier: version.tier,
+      definition,
+      streak_required_to_evolve: version.streak_required_to_evolve
+    })
+    .select()
+    .single();
+
+  if (createError) throw createError;
+
+  return {
+    questTitle: quest.title,
+    tier: version.tier,
+    newVersion,
+    restartCount: restarts
+  };
 }
 
 /**
@@ -257,4 +358,81 @@ export async function recalibrateQuest(quest, version) {
 export async function deactivateQuest(questId) {
   const { error } = await getSupabase().from('quests').update({ active: false }).eq('id', questId);
   if (error) throw error;
+}
+
+/**
+ * Apenas desenvolvimento — retrocede o início do ciclo e opcionalmente simula conclusões.
+ * @param {object} quest
+ * @param {object} version
+ * @param {string} userId
+ * @param {{ passed?: boolean }} [options]
+ */
+export async function simulatePeriodReviewForDev(quest, version, userId, options = {}) {
+  if (!import.meta.env.DEV) {
+    throw new Error('Simulação disponível apenas em desenvolvimento.');
+  }
+
+  const passed = options.passed ?? true;
+  const periodDays = getVersionPeriodDays(version);
+  const simulatedStart = new Date();
+  simulatedStart.setHours(0, 0, 0, 0);
+  simulatedStart.setDate(simulatedStart.getDate() - periodDays - 1);
+
+  const { error: startError } = await getSupabase()
+    .from('quest_versions')
+    .update({ started_at: simulatedStart.toISOString() })
+    .eq('id', version.id);
+
+  if (startError) throw startError;
+
+  const { error: clearError } = await getSupabase()
+    .from('quest_completions')
+    .delete()
+    .eq('quest_version_id', version.id);
+
+  if (clearError) throw clearError;
+
+  const expected = expectedCompletionsInWindow(quest.quest_type, periodDays);
+  const threshold = getSuccessThreshold(version.definition?.framework);
+  const targetCount = passed
+    ? Math.ceil(expected * threshold)
+    : Math.max(0, Math.ceil(expected * threshold) - 1);
+
+  if (targetCount <= 0) {
+    return { periodDays, expected, targetCount, passed };
+  }
+
+  const periodStart = getVersionPeriodStart({ ...version, started_at: simulatedStart.toISOString() });
+  const xpAmount = xpForCompletion(quest.quest_type, version.tier);
+  const rows = [];
+
+  for (let i = 0; i < targetCount; i += 1) {
+    const completedAt = new Date(periodStart);
+
+    if (quest.quest_type === 'weekly') {
+      completedAt.setDate(completedAt.getDate() + i * 7);
+    } else if (quest.quest_type === 'monthly') {
+      completedAt.setMonth(completedAt.getMonth() + i);
+    } else {
+      const dayOffset =
+        targetCount === 1 ? 0 : Math.floor((i * Math.max(periodDays - 1, 0)) / (targetCount - 1));
+      completedAt.setDate(completedAt.getDate() + dayOffset);
+    }
+
+    completedAt.setHours(12, 0, 0, 0);
+
+    rows.push({
+      quest_version_id: version.id,
+      user_id: userId,
+      completed_at: completedAt.toISOString(),
+      evidence: { text: `[dev] conclusão simulada (${passed ? 'aprovado' : 'reprovado'})` },
+      xp_awarded: xpAmount,
+      flagged: false
+    });
+  }
+
+  const { error: seedError } = await getSupabase().from('quest_completions').insert(rows);
+  if (seedError) throw seedError;
+
+  return { periodDays, expected, targetCount, passed };
 }

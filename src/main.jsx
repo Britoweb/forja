@@ -20,7 +20,9 @@ if (!isSupabaseConfigured) {
   initSync();
   root.render(
     <StrictMode>
-      <BrowserRouter>
+      <BrowserRouter
+        basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}
+      >
         <AuthProvider>
           <App />
         </AuthProvider>

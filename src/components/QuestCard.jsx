@@ -1,7 +1,13 @@
 import { useState } from 'react';
+import { getHabitFramework } from '../lib/habitFrameworks.js';
+import { getTraditionLabel, QUEST_TRADITIONS } from '../lib/questPresets.js';
+import { getTimeSlotLabel } from '../lib/questTimeSlots.js';
 import {
   calculateCurrentStreak,
+  evaluatePeriod,
   evolutionProgress,
+  hasCompletionToday,
+  hasMissToday,
   QUEST_CATEGORIES,
   QUEST_TYPES,
   shouldOfferRecalibration,
@@ -9,6 +15,7 @@ import {
   xpForCompletion
 } from '../lib/quests.js';
 import QuestCompletionDialog from './QuestCompletionDialog.jsx';
+import QuestMissDialog from './QuestMissDialog.jsx';
 
 /**
  * @param {object} props
@@ -16,10 +23,25 @@ import QuestCompletionDialog from './QuestCompletionDialog.jsx';
  * @param {(payload: object) => Promise<object|null>} props.onComplete
  * @param {(quest: object, version: object) => Promise<void>} props.onRecalibrate
  * @param {(questId: string) => Promise<void>} props.onRemove
+ * @param {(item: object) => void} [props.onOpenMiss]
+ * @param {(reason: { code: string, label: string }) => Promise<void>} [props.onRecordMiss]
+ * @param {boolean} [props.hasLinkedCard]
+ * @param {(quest: object, version: object) => Promise<void>} [props.onCreateFlashcard]
  */
-export default function QuestCard({ item, onComplete, onRecalibrate, onRemove }) {
+export default function QuestCard({
+  item,
+  onComplete,
+  onRecalibrate,
+  onRemove,
+  onSimulatePeriodReview,
+  onOpenMiss,
+  onRecordMiss,
+  hasLinkedCard,
+  onCreateFlashcard
+}) {
   const { quest, version, completions } = item;
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [missOpen, setMissOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   if (!version) {
@@ -32,13 +54,23 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
   }
 
   const streak = calculateCurrentStreak(completions, quest.quest_type);
-  const progress = evolutionProgress(completions, quest.quest_type, version.streak_required_to_evolve);
+  const period = evaluatePeriod(completions, quest, version);
+  const progress = evolutionProgress(completions, quest, version);
   const progressPct = Math.round(progress * 100);
+  const ratePct = Math.round(period.rate * 100);
+  const thresholdPct = Math.round(period.threshold * 100);
   const canRecalibrate = shouldOfferRecalibration(completions, quest.quest_type, version.tier);
   const xpReward = xpForCompletion(quest.quest_type, version.tier);
-  const completedToday = completions.some(
-    (c) => new Date(c.completed_at).toDateString() === new Date().toDateString()
-  );
+  const completedToday = hasCompletionToday(completions);
+  const missedToday = hasMissToday(completions);
+  const isDaily = quest.quest_type === 'daily';
+  const timeSlot = version.definition?.timeSlot ?? 'anytime';
+  const habitFramework = getHabitFramework(version.definition?.framework);
+  const showFramework = version.definition?.framework && version.definition.framework !== 'custom';
+  const traditionId = version.definition?.tradition;
+  const traditionLabel = traditionId ? QUEST_TRADITIONS[traditionId]?.label ?? getTraditionLabel({ tradition: traditionId }) : null;
+  const presetSource = version.definition?.source;
+  const isDev = import.meta.env.DEV;
 
   async function handleComplete(payload) {
     setBusy(true);
@@ -63,6 +95,45 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
     }
   }
 
+  async function handleSimulate(passed) {
+    if (!onSimulatePeriodReview) return;
+    const label = passed ? 'aprovado' : 'reprovado';
+    if (!window.confirm(`Simular fim do ciclo (${label})? Isso apaga as conclusões atuais desta quest.`)) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onSimulatePeriodReview(quest, version, passed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMiss(reason) {
+    if (onRecordMiss) {
+      await onRecordMiss(reason);
+    }
+    setMissOpen(false);
+  }
+
+  function handleOpenMiss() {
+    if (onOpenMiss) {
+      onOpenMiss(item);
+      return;
+    }
+    setMissOpen(true);
+  }
+
+  async function handleCreateFlashcard() {
+    if (!onCreateFlashcard) return;
+    setBusy(true);
+    try {
+      await onCreateFlashcard(quest, version);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <article className="card quest-card" aria-labelledby={`quest-${quest.id}`}>
@@ -71,6 +142,8 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
             <h3 id={`quest-${quest.id}`}>{quest.title}</h3>
             <p className="quest-meta muted">
               {QUEST_CATEGORIES[quest.category]} · {QUEST_TYPES[quest.quest_type]}
+              {isDaily && timeSlot !== 'anytime' ? ` · ${getTimeSlotLabel(timeSlot)}` : ''}
+              {showFramework ? ` · ${habitFramework.label}` : ''}
             </p>
           </div>
           <span className="badge badge-active" aria-label={`Tier ${version.tier}: ${TIER_LABELS[version.tier]}`}>
@@ -79,6 +152,24 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
         </header>
 
         <p className="quest-target">{version.definition?.target}</p>
+
+        {presetSource && (
+          <p className="quest-preset-source muted">
+            {traditionLabel ? `${traditionLabel} · ` : ''}
+            {presetSource}
+          </p>
+        )}
+
+        <p className="quest-period muted">
+          {period.ended ? (
+            <span className="quest-period-ended">Ciclo encerrado — revisão pendente</span>
+          ) : (
+            <>
+              Ciclo: {period.daysRemaining} dia{period.daysRemaining === 1 ? '' : 's'} restante
+              {period.daysRemaining === 1 ? '' : 's'} · meta {thresholdPct}%
+            </>
+          )}
+        </p>
 
         <dl className="quest-stats">
           <div>
@@ -91,7 +182,9 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
           </div>
           <div>
             <dt>Evolução</dt>
-            <dd aria-label={`Progresso para evoluir: ${progressPct} por cento`}>{progressPct}%</dd>
+            <dd aria-label={`Progresso do ciclo: ${ratePct}% de ${thresholdPct}%`}>
+              {ratePct}% / {thresholdPct}%
+            </dd>
           </div>
         </dl>
 
@@ -101,21 +194,62 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
           aria-valuenow={progressPct}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Progresso de evolução: ${progressPct}%`}
+          aria-label={`Progresso do ciclo: ${progressPct}%`}
         >
           <div className="progress-fill" style={{ width: `${progressPct}%` }} />
         </div>
 
         <div className="quest-actions">
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={completedToday || busy}
-            aria-disabled={completedToday || busy}
-            onClick={() => setDialogOpen(true)}
-          >
-            {completedToday ? 'Concluída hoje' : 'Concluir'}
-          </button>
+          {isDaily && !completedToday && !missedToday && (
+            <>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busy}
+                aria-disabled={busy}
+                onClick={() => setDialogOpen(true)}
+              >
+                Concluir
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={busy}
+                onClick={handleOpenMiss}
+              >
+                Não fiz hoje
+              </button>
+            </>
+          )}
+
+          {(!isDaily || completedToday) && (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={completedToday || busy}
+              aria-disabled={completedToday || busy}
+              onClick={() => setDialogOpen(true)}
+            >
+              {completedToday ? 'Concluída hoje' : 'Concluir'}
+            </button>
+          )}
+
+          {isDaily && missedToday && (
+            <p className="quest-miss-today muted" role="status">
+              Registrado como não feito hoje
+            </p>
+          )}
+
+          {onCreateFlashcard && (
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={busy || hasLinkedCard}
+              onClick={handleCreateFlashcard}
+            >
+              {hasLinkedCard ? 'Card criado' : 'Criar card'}
+            </button>
+          )}
 
           {canRecalibrate && version.tier >= 2 && (
             <button type="button" className="btn-ghost" disabled={busy} onClick={handleRecalibrate}>
@@ -131,6 +265,30 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
           >
             Arquivar
           </button>
+
+          {isDev && onSimulatePeriodReview && (
+            <div className="dev-tools" aria-label="Ferramentas de desenvolvimento">
+              <p className="dev-tools-label muted">Dev: simular revisão de ciclo</p>
+              <div className="dev-tools-actions">
+                <button
+                  type="button"
+                  className="btn-ghost btn-ghost-sm"
+                  disabled={busy}
+                  onClick={() => handleSimulate(true)}
+                >
+                  Aprovado
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost btn-ghost-sm"
+                  disabled={busy}
+                  onClick={() => handleSimulate(false)}
+                >
+                  Reprovado
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </article>
 
@@ -140,6 +298,16 @@ export default function QuestCard({ item, onComplete, onRecalibrate, onRemove })
         onClose={() => setDialogOpen(false)}
         onSubmit={handleComplete}
       />
+
+      {!onOpenMiss && (
+        <QuestMissDialog
+          open={missOpen}
+          quest={quest}
+          version={version}
+          onClose={() => setMissOpen(false)}
+          onSubmit={handleMiss}
+        />
+      )}
     </>
   );
 }

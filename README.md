@@ -51,6 +51,59 @@ não construir em cima de um hábito que ainda não se firmou.
   detecção e evolução de quests são lógica determinística (ver
   `docs/DETECTION_RULES.md`)
 
+## Deploy no GitHub Pages (celular, casa, trabalho)
+
+O backend continua no **Supabase** — o GitHub só hospeda os arquivos estáticos do
+app. Mesmo login em qualquer aparelho = mesmos dados.
+
+### 1. Repositório no GitHub
+
+```bash
+git remote add origin git@github.com:SEU-USUARIO/forja.git
+git push -u origin main
+```
+
+O nome do repositório vira o caminho da URL: `https://SEU-USUARIO.github.io/forja/`
+
+### 2. Secrets do repositório
+
+Em **Settings → Secrets and variables → Actions**, crie:
+
+| Secret | Valor |
+|--------|--------|
+| `VITE_SUPABASE_URL` | URL do projeto (Settings → API no Supabase) |
+| `VITE_SUPABASE_ANON_KEY` | `anon` / publishable key (nunca a `service_role`) |
+
+### 3. Ativar GitHub Pages
+
+Em **Settings → Pages → Build and deployment**:
+
+- **Source:** GitHub Actions
+
+O workflow `.github/workflows/deploy-pages.yml` roda a cada push na `main` e publica
+o site.
+
+### 4. Supabase Auth (obrigatório)
+
+No painel do Supabase: **Authentication → URL Configuration**
+
+- **Site URL:** `https://SEU-USUARIO.github.io/forja/`
+- **Redirect URLs:** adicione a mesma URL (e `http://localhost:5173` para dev local)
+
+### 5. No celular
+
+Abra a URL no navegador → **Adicionar à tela inicial** (PWA).
+
+### Preview local como no Pages
+
+```bash
+VITE_BASE_PATH=/forja/ npm run preview:pages
+```
+
+Abre em `http://localhost:4173/forja/`
+
+---
+
 ## Segurança — não pule isto
 
 - RLS está habilitado em `schema.sql` para toda tabela com `user_id`.

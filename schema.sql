@@ -103,7 +103,10 @@ create table flashcards (
   pattern_id uuid references patterns(id) on delete set null,
   front text not null,
   back text not null,
-  source text not null default 'manual', -- manual | reflection_generated | book_generated | library
+  source text not null default 'manual', -- manual | quest_generated | reflection_generated | book_generated | library
+  deck text not null default 'study',
+  quest_id uuid references quests(id) on delete set null,
+  preset_id text,
   ease_factor numeric not null default 2.5,
   interval_days int not null default 0,
   repetitions int not null default 0,
@@ -112,6 +115,9 @@ create table flashcards (
 );
 
 create index idx_flashcards_review on flashcards(user_id, next_review_at);
+create index idx_flashcards_deck on flashcards(user_id, deck);
+create index idx_flashcards_quest on flashcards(quest_id) where quest_id is not null;
+create unique index idx_flashcards_unique_quest on flashcards(user_id, quest_id) where quest_id is not null;
 
 create table flashcard_reviews (
   id uuid primary key default gen_random_uuid(),

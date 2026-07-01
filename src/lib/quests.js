@@ -3,6 +3,8 @@
  * Ver docs/SPEC.md seção 5.
  */
 
+import { getPeriodDays, getSuccessThreshold } from './habitFrameworks.js';
+
 export const QUEST_CATEGORIES = {
   physical: 'Físico',
   relational: 'Relacional',
@@ -23,7 +25,162 @@ export const TIER_LABELS = {
 };
 
 const XP_BASE = { daily: 10, weekly: 25, monthly: 50 };
-const EVOLUTION_THRESHOLD = 0.9;
+
+/**
+ * @param {object} completion
+ */
+export function isQuestMiss(completion) {
+  return completion.evidence?.type === 'miss';
+}
+
+/**
+ * @param {object[]} completions
+ */
+export function filterSuccessfulCompletions(completions) {
+  return completions.filter((c) => !isQuestMiss(c));
+}
+
+/**
+ * @param {object[]} completions
+ */
+export function hasCompletionToday(completions) {
+  const today = new Date().toDateString();
+  return filterSuccessfulCompletions(completions).some(
+    (c) => new Date(c.completed_at).toDateString() === today
+  );
+}
+
+/**
+ * @param {object[]} completions
+ */
+export function hasMissToday(completions) {
+  const today = new Date().toDateString();
+  return completions.some(
+    (c) => isQuestMiss(c) && new Date(c.completed_at).toDateString() === today
+  );
+}
+
+/**
+ * @param {object} quest
+ * @param {object[]} completions
+ */
+export function isDailyPendingToday(quest, completions) {
+  if (quest.quest_type !== 'daily') return false;
+  return !hasCompletionToday(completions) && !hasMissToday(completions);
+}
+
+/**
+ * @param {object} version
+ * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]
+ */
+export function resolveFrameworkId(version, frameworkId) {
+  return frameworkId ?? version.definition?.framework ?? 'custom';
+}
+
+/**
+ * @param {object} version
+ * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]
+ */
+export function getVersionPeriodDays(version, frameworkId) {
+  const id = resolveFrameworkId(version, frameworkId);
+  return getPeriodDays(id, version.tier, version.streak_required_to_evolve);
+}
+
+/**
+ * @param {object} version
+ */
+export function getVersionPeriodStart(version) {
+  const start = new Date(version.started_at);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+/**
+ * @param {object} version
+ * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]
+ */
+export function getVersionPeriodEnd(version, frameworkId) {
+  const end = getVersionPeriodStart(version);
+  end.setDate(end.getDate() + getVersionPeriodDays(version, frameworkId));
+  return end;
+}
+
+/**
+ * @param {object} version
+ * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]
+ * @param {Date} [now]
+ */
+export function isPeriodEnded(version, frameworkId, now = new Date()) {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return today >= getVersionPeriodEnd(version, frameworkId);
+}
+
+/**
+ * @param {object} version
+ * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]
+ * @param {Date} [now]
+ */
+export function daysRemainingInPeriod(version, frameworkId, now = new Date()) {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const end = getVersionPeriodEnd(version, frameworkId);
+  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86400000));
+}
+
+/**
+ * Avalia o ciclo atual da quest (do started_at até o fim do período).
+ * @param {object[]} completions
+ * @param {object} quest
+ * @param {object} version
+ * @param {Date} [now]
+ */
+export function evaluatePeriod(completions, quest, version, now = new Date()) {
+  const frameworkId = resolveFrameworkId(version);
+  const periodDays = getVersionPeriodDays(version, frameworkId);
+  const threshold = getSuccessThreshold(frameworkId);
+  const periodStart = getVersionPeriodStart(version);
+  const ended = isPeriodEnded(version, frameworkId, now);
+
+  const { rate, actual, expected } = completionRateInWindow(
+    completions,
+    quest.quest_type,
+    periodDays,
+    periodStart
+  );
+
+  const passed = rate >= threshold;
+  const atMastery = version.tier >= 3;
+
+  return {
+    frameworkId,
+    periodDays,
+    threshold,
+    rate,
+    actual,
+    expected,
+    passed,
+    ended,
+    periodStart,
+    periodEnd: getVersionPeriodEnd(version, frameworkId),
+    daysRemaining: daysRemainingInPeriod(version, frameworkId, now),
+    status: !ended ? 'in_progress' : passed ? 'passed' : 'failed',
+    canEvolve: ended && passed && !atMastery,
+    canRestart: ended && !passed,
+    atMastery: ended && passed && atMastery
+  };
+}
+
+/**
+ * Ciclo encerrado e aguardando decisão do usuário.
+ * @param {object[]} completions
+ * @param {object} quest
+ * @param {object} version
+ */
+export function needsPeriodReview(completions, quest, version) {
+  const evaluation = evaluatePeriod(completions, quest, version);
+  return evaluation.ended && (evaluation.canEvolve || evaluation.canRestart || evaluation.atMastery);
+}
 
 /**
  * @param {'daily'|'weekly'|'monthly'} questType
@@ -49,7 +206,9 @@ export function expectedCompletionsInWindow(questType, windowDays) {
 export function completionRateInWindow(completions, questType, windowDays, windowStart) {
   const expected = expectedCompletionsInWindow(questType, windowDays);
   const startMs = windowStart.getTime();
-  const actual = completions.filter((c) => new Date(c.completed_at).getTime() >= startMs).length;
+  const actual = filterSuccessfulCompletions(completions).filter(
+    (c) => new Date(c.completed_at).getTime() >= startMs
+  ).length;
 
   return {
     rate: expected > 0 ? actual / expected : 0,
@@ -59,20 +218,11 @@ export function completionRateInWindow(completions, questType, windowDays, windo
 }
 
 /**
- * @param {object[]} completions
- * @param {'daily'|'weekly'|'monthly'} questType
- * @param {number} streakRequired
- * @param {number} tier
+ * @deprecated Use evaluatePeriod + needsPeriodReview. Mantido para compatibilidade interna.
  */
-export function isEligibleForEvolution(completions, questType, streakRequired, tier) {
-  if (tier >= 3 || streakRequired <= 0) return false;
-
-  const windowStart = new Date();
-  windowStart.setHours(0, 0, 0, 0);
-  windowStart.setDate(windowStart.getDate() - streakRequired);
-
-  const { rate } = completionRateInWindow(completions, questType, streakRequired, windowStart);
-  return rate >= EVOLUTION_THRESHOLD;
+export function isEligibleForEvolution(completions, quest, version) {
+  const evaluation = evaluatePeriod(completions, quest, version);
+  return evaluation.canEvolve;
 }
 
 /**
@@ -87,9 +237,10 @@ function toDateKey(date) {
  * @param {'daily'|'weekly'|'monthly'} questType
  */
 export function calculateCurrentStreak(completions, questType) {
-  if (!completions.length) return 0;
+  const successful = filterSuccessfulCompletions(completions);
+  if (!successful.length) return 0;
 
-  const sorted = [...completions].sort(
+  const sorted = [...successful].sort(
     (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
   );
 
@@ -252,15 +403,13 @@ export function shouldOfferRecalibration(completions, questType, tier) {
 }
 
 /**
- * @param {number} progressRate 0–1
+ * Progresso em direção à meta do ciclo (0–1).
+ * @param {object[]} completions
+ * @param {object} quest
+ * @param {object} version
  */
-export function evolutionProgress(completions, questType, streakRequired) {
-  if (streakRequired <= 0) return 0;
-
-  const windowStart = new Date();
-  windowStart.setHours(0, 0, 0, 0);
-  windowStart.setDate(windowStart.getDate() - streakRequired);
-
-  const { rate } = completionRateInWindow(completions, questType, streakRequired, windowStart);
-  return Math.min(1, rate / EVOLUTION_THRESHOLD);
+export function evolutionProgress(completions, quest, version) {
+  const evaluation = evaluatePeriod(completions, quest, version);
+  if (evaluation.threshold <= 0) return 0;
+  return Math.min(1, evaluation.rate / evaluation.threshold);
 }

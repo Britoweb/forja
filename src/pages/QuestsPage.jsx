@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
+import QuestPresetSuggestions from '../components/QuestPresetSuggestions.jsx';
 import EvolutionNotice from '../components/EvolutionNotice.jsx';
+import IncompleteDailiesBanner from '../components/IncompleteDailiesBanner.jsx';
+import PeriodReviewDialog from '../components/PeriodReviewDialog.jsx';
 import QuestCard from '../components/QuestCard.jsx';
 import QuestForm from '../components/QuestForm.jsx';
+import QuestMissDialog from '../components/QuestMissDialog.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useFlashcards } from '../hooks/useFlashcards.js';
 import { useQuests } from '../hooks/useQuests.js';
 import { fetchPatterns, seedDefaultPatterns } from '../lib/api/patterns.js';
+import { buildFlashcardFromQuest, hasCardForQuestItem } from '../lib/questFlashcards.js';
 
 export default function QuestsPage() {
   const { user } = useAuth();
@@ -13,13 +19,29 @@ export default function QuestsPage() {
     loading,
     error,
     evolutionNotice,
+    periodReview,
+    reviewBusy,
     addQuest,
     complete,
     recalibrate,
     removeQuest,
-    dismissEvolution
+    dismissEvolution,
+    dismissPeriodReview,
+    acceptEvolution,
+    restartPeriod,
+    archiveFromReview,
+    simulatePeriodReview,
+    missDialog,
+    openMissDialog,
+    closeMissDialog,
+    recordMiss
   } = useQuests();
+  const { cards, addCard } = useFlashcards();
   const [patterns, setPatterns] = useState([]);
+
+  async function handleCreateFlashcard(quest, version) {
+    await addCard(buildFlashcardFromQuest(quest, version));
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -57,8 +79,12 @@ export default function QuestsPage() {
     <div className="quests-page">
       <section className="hero">
         <h1>Quests</h1>
-        <p className="muted">Hábitos adaptativos com streaks e evolução de tier.</p>
+        <p className="muted">Hábitos com presets de filosofia, psicologia e ciência — ou crie do zero.</p>
       </section>
+
+      <QuestPresetSuggestions items={items} onAdd={addQuest} />
+
+      <IncompleteDailiesBanner items={items} onRegisterMiss={openMissDialog} />
 
       <QuestForm patterns={patterns} onSubmit={addQuest} />
 
@@ -80,6 +106,11 @@ export default function QuestsPage() {
                   onComplete={complete}
                   onRecalibrate={recalibrate}
                   onRemove={handleRemove}
+                  onSimulatePeriodReview={simulatePeriodReview}
+                  onOpenMiss={openMissDialog}
+                  onRecordMiss={recordMiss}
+                  hasLinkedCard={hasCardForQuestItem(cards, item.quest, item.version)}
+                  onCreateFlashcard={handleCreateFlashcard}
                 />
               </li>
             ))}
@@ -88,6 +119,21 @@ export default function QuestsPage() {
       </section>
 
       <EvolutionNotice evolution={evolutionNotice} onDismiss={dismissEvolution} />
+      <PeriodReviewDialog
+        review={periodReview}
+        busy={reviewBusy}
+        onDismiss={dismissPeriodReview}
+        onEvolve={acceptEvolution}
+        onRestart={restartPeriod}
+        onArchive={archiveFromReview}
+      />
+      <QuestMissDialog
+        open={Boolean(missDialog)}
+        quest={missDialog?.quest}
+        version={missDialog?.version}
+        onClose={closeMissDialog}
+        onSubmit={recordMiss}
+      />
     </div>
   );
 }

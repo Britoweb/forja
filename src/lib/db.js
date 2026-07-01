@@ -59,6 +59,19 @@ export async function flushPendingSync(supabase) {
         case 'flashcard_review':
           await supabase.from('flashcard_reviews').insert(item.payload);
           break;
+        case 'flashcard_review_bundle': {
+          await supabase.from('flashcard_reviews').insert(item.payload.review);
+          await supabase
+            .from('flashcards')
+            .update({
+              ease_factor: item.payload.cardUpdate.ease_factor,
+              interval_days: item.payload.cardUpdate.interval_days,
+              repetitions: item.payload.cardUpdate.repetitions,
+              next_review_at: item.payload.cardUpdate.next_review_at
+            })
+            .eq('id', item.payload.cardUpdate.id);
+          break;
+        }
         default:
           console.warn('Tipo de sync desconhecido:', item.type);
           continue;
