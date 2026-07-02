@@ -32,7 +32,8 @@ export async function queueForSync(type, payload) {
  * correspondente e marcar synced=true em caso de sucesso.
  */
 export async function flushPendingSync(supabase) {
-  const pending = await db.pendingSync.where('synced').equals(false).toArray();
+  // Boolean false não é chave válida em IDBKeyRange em alguns navegadores — usar filter.
+  const pending = await db.pendingSync.filter((item) => item.synced !== true).toArray();
 
   for (const item of pending) {
     try {
