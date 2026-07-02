@@ -54,7 +54,7 @@ export default function LoginPage() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
-          <div>
+          <div className="form-field">
             <label htmlFor={emailId}>E-mail</label>
             <input
               id={emailId}
@@ -68,7 +68,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          <div>
+          <div className="form-field">
             <label htmlFor={passwordId}>Senha</label>
             <input
               id={passwordId}

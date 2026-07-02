@@ -47,7 +47,7 @@ export default function ReflectionsPage() {
         </p>
       )}
 
-      <section className="section" aria-labelledby="today-reflection-heading">
+      <section className="section section--reflection-today" aria-labelledby="today-reflection-heading">
         <div className="section-header">
           <h2 id="today-reflection-heading">Hoje</h2>
           <p className="muted">
@@ -76,7 +76,7 @@ export default function ReflectionsPage() {
         </div>
 
         {currentDone ? (
-          <div className="card empty-state">
+          <div className="card empty-state reflection-today-empty">
             <p>
               Reflexão da {REFLECTION_TYPE_LABELS[activeType].toLowerCase()} já registrada hoje.
             </p>
