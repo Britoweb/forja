@@ -146,8 +146,9 @@ export default function QuestCard({
               {showFramework ? ` · ${habitFramework.label}` : ''}
             </p>
           </div>
-          <span className="badge badge-active" aria-label={`Tier ${version.tier}: ${TIER_LABELS[version.tier]}`}>
-            T{version.tier} · {TIER_LABELS[version.tier]}
+          <span className="badge badge-tier badge-active" aria-label={`Tier ${version.tier}: ${TIER_LABELS[version.tier]}`}>
+            <span className="badge-tier-mark">T{version.tier}</span>
+            <span className="badge-tier-name">{TIER_LABELS[version.tier]}</span>
           </span>
         </header>
 

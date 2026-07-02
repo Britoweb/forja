@@ -225,6 +225,12 @@ a {
   gap: var(--space-6);
 }
 
+.dashboard .section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .hero h1 {
   margin: 0 0 var(--space-1);
   font-size: 1.75rem;
@@ -312,6 +318,33 @@ a {
   color: var(--accent-text);
   border-color: var(--border-strong);
   background: var(--accent-bg);
+}
+
+.badge-tier {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  min-width: 4.75rem;
+  border-radius: 10px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.15;
+}
+
+.badge-tier-mark {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+}
+
+.badge-tier-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .badge-consolidated {
@@ -620,6 +653,18 @@ a {
 }
 
 /* Quests */
+.quests-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.quests-page .section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .quests-page,
 .quest-list {
   list-style: none;
