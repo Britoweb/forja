@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   createFlashcard,
   deleteFlashcard,
+  deleteQuestGeneratedFlashcards,
   fetchDueFlashcardCount,
   fetchFlashcards,
   reviewFlashcard
@@ -140,6 +141,13 @@ export function useFlashcards() {
     [reload]
   );
 
+  const removeQuestCards = useCallback(async () => {
+    if (!user) return 0;
+    const removed = await deleteQuestGeneratedFlashcards(user.id);
+    await reload();
+    return removed;
+  }, [user, reload]);
+
   const dueCards = cards.filter((c) => new Date(c.next_review_at).getTime() <= Date.now());
 
   return {
@@ -154,6 +162,7 @@ export function useFlashcards() {
     addCards,
     addStarterCards,
     review,
-    removeCard
+    removeCard,
+    removeQuestCards
   };
 }

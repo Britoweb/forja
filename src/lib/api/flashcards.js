@@ -178,3 +178,33 @@ export async function deleteFlashcard(flashcardId) {
   const { error } = await getSupabase().from('flashcards').delete().eq('id', flashcardId);
   if (error) throw error;
 }
+
+/**
+ * @param {object} card
+ */
+export function isQuestGeneratedCard(card) {
+  if (card.quest_id) return true;
+  if (card.source === 'quest_generated') return true;
+  if (card.preset_id) return true;
+  if (card.front?.trim().toLowerCase().startsWith('pratico:')) return true;
+  return false;
+}
+
+/**
+ * Remove todos os flashcards originados de quests (inclui duplicatas antigas).
+ * Mantém cards manuais, starters A/B/C e estudo livre.
+ * @param {string} userId
+ * @returns {Promise<number>}
+ */
+export async function deleteQuestGeneratedFlashcards(userId) {
+  const all = await fetchFlashcards(userId);
+  const toRemove = all.filter(isQuestGeneratedCard);
+
+  if (!toRemove.length) return 0;
+
+  const ids = toRemove.map((c) => c.id);
+  const { error } = await getSupabase().from('flashcards').delete().in('id', ids);
+
+  if (error) throw error;
+  return toRemove.length;
+}

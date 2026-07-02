@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import FlashcardDeckFilter from '../components/FlashcardDeckFilter.jsx';
 import FlashcardForm from '../components/FlashcardForm.jsx';
 import FlashcardReviewSession from '../components/FlashcardReviewSession.jsx';
@@ -7,6 +8,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useFlashcards } from '../hooks/useFlashcards.js';
 import { useQuests } from '../hooks/useQuests.js';
 import { fetchPatterns, seedDefaultPatterns } from '../lib/api/patterns.js';
+import { isQuestGeneratedCard } from '../lib/api/flashcards.js';
 import {
   getNotificationPermission,
   notificationsSupported,
@@ -38,12 +40,18 @@ export default function FlashcardsPage() {
     addCards,
     addStarterCards,
     review,
-    removeCard
+    removeCard,
+    removeQuestCards
   } = useFlashcards();
   const [patterns, setPatterns] = useState([]);
   const [deckFilter, setDeckFilter] = useState('all');
   const [notifyPermission, setNotifyPermission] = useState(() => getNotificationPermission());
   const [addingStarters, setAddingStarters] = useState(false);
+  const [purgingQuestCards, setPurgingQuestCards] = useState(false);
+  const [purgeMessage, setPurgeMessage] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const questCardCount = useMemo(() => cards.filter(isQuestGeneratedCard).length, [cards]);
 
   const filteredCards = useMemo(
     () => filterCardsByDeck(cards, deckFilter),
@@ -83,6 +91,36 @@ export default function FlashcardsPage() {
     }
   }
 
+  async function handlePurgeQuestCards() {
+    if (questCardCount === 0) {
+      setPurgeMessage('Nenhum card de quest para remover.');
+      return;
+    }
+
+    const ok = window.confirm(
+      `Remover todos os ${questCardCount} card(s) de quests?\n\nMantém os cards dos padrões A/B/C e estudo livre.`
+    );
+    if (!ok) return;
+
+    setPurgingQuestCards(true);
+    setPurgeMessage('');
+    try {
+      const removed = await removeQuestCards();
+      setPurgeMessage(`${removed} card(s) de quests removido(s). Você pode criar de novo nas quests.`);
+    } catch (err) {
+      setPurgeMessage(err.message ?? 'Erro ao remover cards de quests.');
+    } finally {
+      setPurgingQuestCards(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user || loading || searchParams.get('purgeQuestCards') !== '1') return;
+    setSearchParams({}, { replace: true });
+    handlePurgeQuestCards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- disparo único via URL
+  }, [user, loading, searchParams]);
+
   if (loading) {
     return (
       <div className="screen-center" role="status" aria-live="polite">
@@ -120,6 +158,28 @@ export default function FlashcardsPage() {
         onAdd={addCard}
         onAddAll={addCards}
       />
+
+      {questCardCount > 0 && (
+        <section className="card flashcard-purge-banner" aria-label="Limpar cards de quests">
+          <p className="muted">
+            {questCardCount} card(s) de quests no baralho
+            {questCardCount > 1 ? ' (inclui duplicatas antigas)' : ''}.
+          </p>
+          <button
+            type="button"
+            className="btn-ghost btn-ghost-sm"
+            onClick={handlePurgeQuestCards}
+            disabled={purgingQuestCards}
+          >
+            {purgingQuestCards ? 'Removendo…' : 'Remover todos os cards de quests'}
+          </button>
+          {purgeMessage && (
+            <p className="muted" role="status" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+              {purgeMessage}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="card flashcard-stats" aria-label="Estatísticas de revisão">
         <div className="flashcard-stat">
