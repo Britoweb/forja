@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import NavIcon from './NavIcon.jsx';
 import { useNavBadges } from '../hooks/useNavBadges.js';
 import { NAV_ITEMS } from '../lib/navItems.js';
 
@@ -18,7 +19,7 @@ export default function BottomNav() {
               }
             >
               <span className="bottom-nav-icon" aria-hidden="true">
-                {item.label[0]}
+                <NavIcon name={item.icon} />
                 {item.showDue && dueCards > 0 && (
                   <span className="bottom-nav-badge">{dueCards > 9 ? '9+' : dueCards}</span>
                 )}
