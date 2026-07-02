@@ -133,7 +133,7 @@ export default function DashboardPage() {
       <IncompleteDailiesBanner items={quests} onRegisterMiss={openMissDialog} />
 
       <section className="section" aria-labelledby="reflections-preview-heading">
-        <div className="section-header section-header-row">
+        <div className="section-header section-header-stack">
           <div>
             <h2 id="reflections-preview-heading">Diário de hoje</h2>
             <p className="muted">
@@ -141,14 +141,14 @@ export default function DashboardPage() {
               {REFLECTION_TYPE_LABELS.evening}: {reflectionToday.evening ? 'feita' : 'pendente'}
             </p>
           </div>
-          <Link to="/reflections" className="btn-ghost">
+          <Link to="/reflections" className="btn-ghost section-header-action">
             Abrir diário
           </Link>
         </div>
       </section>
 
       <section className="section" aria-labelledby="report-preview-heading">
-        <div className="section-header section-header-row">
+        <div className="section-header section-header-stack">
           <div>
             <h2 id="report-preview-heading">Relatório</h2>
             <p className="muted">
@@ -157,14 +157,14 @@ export default function DashboardPage() {
                 : 'Nenhum flag em aberto — rode a análise após alguns dias de uso'}
             </p>
           </div>
-          <Link to="/report" className="btn-ghost">
+          <Link to="/report" className="btn-ghost section-header-action">
             Ver relatório
           </Link>
         </div>
       </section>
 
       <section className="section" aria-labelledby="flashcards-preview-heading">
-        <div className="section-header section-header-row">
+        <div className="section-header section-header-stack">
           <div>
             <h2 id="flashcards-preview-heading">Cards para revisar</h2>
             <p className="muted">
@@ -173,7 +173,7 @@ export default function DashboardPage() {
                 : 'Nenhum card devido agora'}
             </p>
           </div>
-          <Link to="/flashcards" className="btn-ghost">
+          <Link to="/flashcards" className="btn-ghost section-header-action">
             {dueFlashcards > 0 ? 'Revisar' : 'Ver cards'}
           </Link>
         </div>
@@ -188,12 +188,12 @@ export default function DashboardPage() {
       </section>
 
       <section className="section" aria-labelledby="quests-preview-heading">
-        <div className="section-header section-header-row">
+        <div className="section-header section-header-stack">
           <div>
             <h2 id="quests-preview-heading">Quests de hoje</h2>
             <p className="muted">{quests.length} quest(s) ativa(s)</p>
           </div>
-          <Link to="/quests" className="btn-ghost">
+          <Link to="/quests" className="btn-ghost section-header-action">
             Ver todas
           </Link>
         </div>

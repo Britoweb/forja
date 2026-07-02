@@ -589,6 +589,22 @@ a {
   gap: var(--space-4);
 }
 
+.section-header-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.section-header-stack .section-header-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-decoration: none;
+  text-align: center;
+}
+
 .btn-inline {
   display: inline-block;
   width: auto;
