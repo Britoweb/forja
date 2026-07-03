@@ -242,14 +242,21 @@ export default function QuestCard({
           )}
 
           {onCreateFlashcard && (
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={busy || hasLinkedCard}
-              onClick={handleCreateFlashcard}
-            >
-              {hasLinkedCard ? 'Card criado' : 'Criar card'}
-            </button>
+            <div className="quest-card-flashcard-action">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={busy || hasLinkedCard}
+                onClick={handleCreateFlashcard}
+              >
+                {hasLinkedCard ? 'Card criado' : 'Criar card (opcional)'}
+              </button>
+              {!hasLinkedCard && (
+                <p className="muted quest-card-flashcard-hint">
+                  Opcional — fixa o princípio na aba Cards. A quest do dia não depende disso.
+                </p>
+              )}
+            </div>
           )}
 
           {canRecalibrate && version.tier >= 2 && (

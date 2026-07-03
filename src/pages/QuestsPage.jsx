@@ -79,7 +79,10 @@ export default function QuestsPage() {
     <div className="quests-page">
       <section className="hero">
         <h1>Quests</h1>
-        <p className="muted">Hábitos com presets de filosofia, psicologia e ciência — ou crie do zero.</p>
+        <p className="muted">
+          Hábitos do dia — marque <strong>Concluir</strong> ou <strong>Não fiz hoje</strong>. Cards de
+          revisão são opcionais (aba Cards).
+        </p>
       </section>
 
       <QuestPresetSuggestions items={items} onAdd={addQuest} />

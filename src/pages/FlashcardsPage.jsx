@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import FlashcardDeckFilter from '../components/FlashcardDeckFilter.jsx';
 import FlashcardForm from '../components/FlashcardForm.jsx';
+import FlashcardHowItWorks from '../components/FlashcardHowItWorks.jsx';
 import FlashcardReviewSession from '../components/FlashcardReviewSession.jsx';
 import QuestFlashcardSuggestions from '../components/QuestFlashcardSuggestions.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -45,6 +46,7 @@ export default function FlashcardsPage() {
   } = useFlashcards();
   const [patterns, setPatterns] = useState([]);
   const [deckFilter, setDeckFilter] = useState('all');
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [notifyPermission, setNotifyPermission] = useState(() => getNotificationPermission());
   const [addingStarters, setAddingStarters] = useState(false);
   const [purgingQuestCards, setPurgingQuestCards] = useState(false);
@@ -63,6 +65,14 @@ export default function FlashcardsPage() {
   }, [filteredCards]);
   const filteredDueCount = filteredDueCards.length;
   const currentCard = filteredDueCards[0] ?? null;
+  const nextScheduled = useMemo(() => {
+    if (!cards.length || dueCount > 0) return null;
+    const future = cards
+      .map((c) => new Date(c.next_review_at).getTime())
+      .filter((t) => t > Date.now())
+      .sort((a, b) => a - b);
+    return future.length ? new Date(future[0]) : null;
+  }, [cards, dueCount]);
 
   useEffect(() => {
     if (!user) return;
@@ -147,10 +157,49 @@ export default function FlashcardsPage() {
     <div className="flashcards-page">
       <section className="hero">
         <h1>Cards</h1>
-        <p className="muted">
-          Baralhos no estilo Anki — revise no seu ritmo. Quests praticam; cards fixam o princípio.
-        </p>
+        <p className="muted">Revisão espaçada (Anki) — opcional e separada das quests do dia.</p>
       </section>
+
+      <FlashcardHowItWorks />
+
+      <section
+        className={`section flashcard-review-section${filteredDueCount > 0 ? ' flashcard-review-section--active' : ''}`}
+        aria-labelledby="review-heading"
+      >
+        <div className="section-header">
+          <h2 id="review-heading">Revisão agora</h2>
+          {filteredDueCount > 0 ? (
+            <p className="muted">{filteredDueCount} card(s) devido(s) neste filtro</p>
+          ) : dueCount > 0 && deckFilter !== 'all' ? (
+            <p className="muted">
+              Nenhum devido em {getDeckLabel(deckFilter)}.{' '}
+              <button type="button" className="btn-link" onClick={() => setDeckFilter('all')}>
+                Ver todos ({dueCount} devido{dueCount === 1 ? '' : 's'})
+              </button>
+            </p>
+          ) : nextScheduled ? (
+            <p className="muted">Próxima revisão: {formatNextReview(nextScheduled.toISOString())}</p>
+          ) : (
+            <p className="muted">Adicione cards abaixo — novos ficam devidos na hora.</p>
+          )}
+        </div>
+        <FlashcardReviewSession card={currentCard} busy={reviewing} onReview={review} />
+      </section>
+
+      <section className="card flashcard-stats" aria-label="Estatísticas de revisão">
+        <div className="flashcard-stat">
+          <span className="flashcard-stat-value">{dueCount}</span>
+          <span className="flashcard-stat-label muted">devidos no total</span>
+        </div>
+        <div className="flashcard-stat">
+          <span className="flashcard-stat-value">{cards.length}</span>
+          <span className="flashcard-stat-label muted">cards no baralho</span>
+        </div>
+      </section>
+
+      {cards.length > 0 && (
+        <FlashcardDeckFilter value={deckFilter} cards={cards} onChange={setDeckFilter} />
+      )}
 
       <QuestFlashcardSuggestions
         questItems={questItems}
@@ -181,21 +230,6 @@ export default function FlashcardsPage() {
         </section>
       )}
 
-      <section className="card flashcard-stats" aria-label="Estatísticas de revisão">
-        <div className="flashcard-stat">
-          <span className="flashcard-stat-value">{filteredDueCount || dueCount}</span>
-          <span className="flashcard-stat-label muted">para revisar</span>
-        </div>
-        <div className="flashcard-stat">
-          <span className="flashcard-stat-value">{cards.length}</span>
-          <span className="flashcard-stat-label muted">no total</span>
-        </div>
-      </section>
-
-      {cards.length > 0 && (
-        <FlashcardDeckFilter value={deckFilter} cards={cards} onChange={setDeckFilter} />
-      )}
-
       {notificationsSupported() && notifyPermission !== 'granted' && (
         <section className="card flashcard-notify-banner">
           <p className="muted">Ative lembretes quando houver cards para revisar.</p>
@@ -211,78 +245,73 @@ export default function FlashcardsPage() {
       )}
 
       {cards.length === 0 ? (
-        <>
-          <section className="card empty-state">
-            <p className="muted">
-              Comece pelos cards das quests acima, pelos padrões A/B/C, ou crie o seu.
-            </p>
-            <button
-              type="button"
-              className="btn-primary btn-inline"
-              disabled={addingStarters}
-              onClick={handleAddStarters}
-            >
-              {addingStarters ? 'Adicionando…' : 'Cards dos padrões A/B/C'}
-            </button>
-          </section>
-          <FlashcardForm patterns={patterns} onSubmit={addCard} />
-        </>
-      ) : (
-        <>
-          <section className="section" aria-labelledby="review-heading">
-            <div className="section-header">
-              <h2 id="review-heading">Revisão</h2>
-              {deckFilter !== 'all' && (
-                <p className="muted">{getDeckLabel(deckFilter)}</p>
-              )}
-              {filteredDueCount > 0 && <p className="muted">{filteredDueCount} devido(s)</p>}
-            </div>
-            <FlashcardReviewSession card={currentCard} busy={reviewing} onReview={review} />
-          </section>
+        <section className="card empty-state">
+          <p className="muted">
+            Sem cards ainda. Comece pelos padrões A/B/C ou crie cards a partir das quests (opcional).
+          </p>
+          <button
+            type="button"
+            className="btn-primary btn-inline"
+            disabled={addingStarters}
+            onClick={handleAddStarters}
+          >
+            {addingStarters ? 'Adicionando…' : 'Adicionar cards dos padrões A/B/C'}
+          </button>
+        </section>
+      ) : null}
 
-          <FlashcardForm patterns={patterns} onSubmit={addCard} />
+      <section className="section">
+        <button
+          type="button"
+          className="btn-ghost section-header-action"
+          onClick={() => setShowCreateForm((v) => !v)}
+          aria-expanded={showCreateForm}
+        >
+          {showCreateForm ? 'Ocultar formulário' : 'Criar card manual'}
+        </button>
+        {showCreateForm && <FlashcardForm patterns={patterns} onSubmit={addCard} />}
+      </section>
 
-          <section className="section" aria-labelledby="deck-heading">
-            <div className="section-header">
-              <h2 id="deck-heading">
-                Baralho {deckFilter !== 'all' ? `· ${getDeckLabel(deckFilter)}` : ''} (
-                {filteredCards.length})
-              </h2>
-            </div>
-            <ul className="flashcard-deck-list" role="list">
-              {filteredCards.map((card) => {
-                const isDue = new Date(card.next_review_at).getTime() <= Date.now();
-                const pattern = patterns.find((p) => p.id === card.pattern_id);
-                return (
-                  <li key={card.id}>
-                    <article className={`flashcard-deck-item card ${isDue ? 'flashcard-deck-item--due' : ''}`}>
-                      <div>
-                        <p className="flashcard-deck-front">{card.front}</p>
-                        <p className="flashcard-deck-back muted">{card.back}</p>
-                        <p className="flashcard-deck-meta muted">
-                          {getDeckLabel(card.deck)}
-                          {pattern ? ` · ${pattern.code}` : ''}
-                          {' · '}
-                          {formatNextReview(card.next_review_at)}
-                          {isDue ? ' · devido' : ''}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-link btn-link-danger"
-                        onClick={() => {
-                          if (window.confirm('Excluir este card?')) removeCard(card.id);
-                        }}
-                      >
-                        Excluir
-                      </button>
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </>
+      {cards.length > 0 && (
+        <details className="flashcard-deck-details">
+          <summary>Seu baralho ({filteredCards.length}) — consulta e exclusão</summary>
+          <p className="muted flashcard-deck-details-hint">
+            Para estudar, use a seção <strong>Revisão agora</strong> no topo — não é preciso abrir cada
+            card aqui.
+          </p>
+          <ul className="flashcard-deck-list" role="list">
+            {filteredCards.map((card) => {
+              const isDue = new Date(card.next_review_at).getTime() <= Date.now();
+              const pattern = patterns.find((p) => p.id === card.pattern_id);
+              return (
+                <li key={card.id}>
+                  <article className={`flashcard-deck-item card ${isDue ? 'flashcard-deck-item--due' : ''}`}>
+                    <div>
+                      <p className="flashcard-deck-front">{card.front}</p>
+                      <p className="flashcard-deck-back muted">{card.back}</p>
+                      <p className="flashcard-deck-meta muted">
+                        {getDeckLabel(card.deck)}
+                        {pattern ? ` · ${pattern.code}` : ''}
+                        {' · '}
+                        {formatNextReview(card.next_review_at)}
+                        {isDue ? ' · devido' : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-link btn-link-danger"
+                      onClick={() => {
+                        if (window.confirm('Excluir este card?')) removeCard(card.id);
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
     </div>
   );

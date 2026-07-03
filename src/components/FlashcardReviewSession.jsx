@@ -13,7 +13,13 @@ export default function FlashcardReviewSession({ card, busy, onReview }) {
   if (!card) {
     return (
       <div className="card empty-state flashcard-done">
-        <p className="muted">Nenhum card para revisar agora. Volte mais tarde.</p>
+        <p className="muted">
+          Nenhum card devido para revisão agora. O algoritmo SM-2 agenda a próxima data automaticamente.
+        </p>
+        <p className="muted flashcard-done-hint">
+          A lista &quot;Seu baralho&quot; abaixo é só consulta — para estudar, espere o card ficar
+          &quot;devido&quot; ou adicione cards novos (ficam devidos na hora).
+        </p>
       </div>
     );
   }
