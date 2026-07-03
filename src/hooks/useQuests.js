@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   acceptPeriodEvolution,
@@ -11,6 +11,7 @@ import {
   restartQuestPeriod,
   simulatePeriodReviewForDev
 } from '../lib/api/quests.js';
+import { getCachedQuests, setCachedQuests } from '../lib/questCache.js';
 import { queueForSync } from '../lib/db.js';
 import { evaluatePeriod, needsPeriodReview, xpForCompletion } from '../lib/quests.js';
 
@@ -19,16 +20,24 @@ import { evaluatePeriod, needsPeriodReview, xpForCompletion } from '../lib/quest
  */
 export function useQuests() {
   const { user } = useAuth();
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.id ?? null;
+  const initialCache = userId ? getCachedQuests(userId) : null;
+
+  const [items, setItems] = useState(() => initialCache ?? []);
+  const [loading, setLoading] = useState(() => !initialCache);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [evolutionNotice, setEvolutionNotice] = useState(null);
   const [periodReview, setPeriodReview] = useState(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [dismissedReviewVersionIds, setDismissedReviewVersionIds] = useState(() => new Set());
   const [missDialog, setMissDialog] = useState(null);
+  const hasLoadedRef = useRef(Boolean(initialCache));
+  const dismissedRef = useRef(dismissedReviewVersionIds);
+  dismissedRef.current = dismissedReviewVersionIds;
 
-  const syncPeriodReview = useCallback((data, dismissed) => {
+  const syncPeriodReview = useCallback((data) => {
+    const dismissed = dismissedRef.current;
     const pending = data.find(
       (item) =>
         item.version &&
@@ -49,79 +58,139 @@ export function useQuests() {
     });
   }, []);
 
-  const reload = useCallback(async () => {
-    if (!user) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await fetchActiveQuests(user.id);
+  const applyItems = useCallback(
+    (data) => {
       setItems(data);
-      syncPeriodReview(data, dismissedReviewVersionIds);
-    } catch (err) {
-      setError(err.message ?? 'Erro ao carregar quests.');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, dismissedReviewVersionIds, syncPeriodReview]);
+      if (userId) setCachedQuests(userId, data);
+      syncPeriodReview(data);
+    },
+    [userId, syncPeriodReview]
+  );
+
+  const reload = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!userId) return;
+
+      if (silent && hasLoadedRef.current) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
+
+      try {
+        const data = await fetchActiveQuests(userId);
+        applyItems(data);
+        hasLoadedRef.current = true;
+      } catch (err) {
+        setError(err.message ?? 'Erro ao carregar quests.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [userId, applyItems]
+  );
 
   useEffect(() => {
+    if (!userId) {
+      setItems([]);
+      setLoading(false);
+      hasLoadedRef.current = false;
+      return;
+    }
+
+    const cached = getCachedQuests(userId);
+    if (cached) {
+      setItems(cached);
+      hasLoadedRef.current = true;
+      setLoading(false);
+      reload({ silent: true });
+      return;
+    }
+
     reload();
-  }, [reload]);
+  }, [userId, reload]);
 
   const addQuest = useCallback(
     async (input) => {
-      if (!user) return;
-      await createQuest(user.id, input);
-      await reload();
+      if (!userId) return;
+      await createQuest(userId, input);
+      await reload({ silent: true });
     },
-    [user, reload]
+    [userId, reload]
   );
 
   const complete = useCallback(
     async ({ quest, version, completions, evidenceText, openedAt }) => {
-      if (!user) return null;
+      if (!userId) return null;
+
+      const xpAmount = xpForCompletion(quest.quest_type, version.tier);
+      const completedAt = new Date().toISOString();
+      const optimisticCompletion = {
+        id: `optimistic-${quest.id}`,
+        quest_version_id: version.id,
+        user_id: userId,
+        opened_at: openedAt,
+        completed_at: completedAt,
+        evidence: { text: evidenceText },
+        xp_awarded: xpAmount,
+        flagged: false
+      };
+
+      setItems((prev) => {
+        const next = prev.map((item) =>
+          item.quest.id === quest.id
+            ? { ...item, completions: [optimisticCompletion, ...item.completions] }
+            : item
+        );
+        if (userId) setCachedQuests(userId, next);
+        return next;
+      });
 
       if (!navigator.onLine) {
-        const xpAmount = xpForCompletion(quest.quest_type, version.tier);
         await queueForSync('quest_completion_bundle', {
           completion: {
             quest_version_id: version.id,
-            user_id: user.id,
+            user_id: userId,
             opened_at: openedAt,
-            completed_at: new Date().toISOString(),
+            completed_at: completedAt,
             evidence: { text: evidenceText },
             xp_awarded: xpAmount,
             flagged: false
           },
           xpEntry: {
-            user_id: user.id,
+            user_id: userId,
             source_type: 'quest',
             amount: xpAmount
           }
         });
-        await reload();
+        await reload({ silent: true });
         return { offline: true };
       }
 
-      const result = await completeQuest({
-        userId: user.id,
-        quest,
-        version,
-        completions,
-        evidenceText,
-        openedAt
-      });
+      try {
+        const result = await completeQuest({
+          userId,
+          quest,
+          version,
+          completions,
+          evidenceText,
+          openedAt
+        });
 
-      if (result.evolved && result.evolution) {
-        setEvolutionNotice(result.evolution);
+        if (result.evolved && result.evolution) {
+          setEvolutionNotice(result.evolution);
+        }
+
+        await reload({ silent: true });
+        return result;
+      } catch (err) {
+        await reload({ silent: true });
+        throw err;
       }
-
-      await reload();
-      return result;
     },
-    [user, reload]
+    [userId, reload]
   );
 
   const dismissPeriodReview = useCallback(() => {
@@ -141,7 +210,7 @@ export function useQuests() {
       );
       setPeriodReview(null);
       setEvolutionNotice(evolution);
-      await reload();
+      await reload({ silent: true });
     } finally {
       setReviewBusy(false);
     }
@@ -158,7 +227,7 @@ export function useQuests() {
         return next;
       });
       setPeriodReview(null);
-      await reload();
+      await reload({ silent: true });
     } finally {
       setReviewBusy(false);
     }
@@ -170,7 +239,7 @@ export function useQuests() {
     try {
       await deactivateQuest(periodReview.quest.id);
       setPeriodReview(null);
-      await reload();
+      await reload({ silent: true });
     } finally {
       setReviewBusy(false);
     }
@@ -178,27 +247,27 @@ export function useQuests() {
 
   const simulatePeriodReview = useCallback(
     async (quest, version, passed) => {
-      if (!user) return;
+      if (!userId) return;
       setReviewBusy(true);
       try {
-        await simulatePeriodReviewForDev(quest, version, user.id, { passed });
+        await simulatePeriodReviewForDev(quest, version, userId, { passed });
         setDismissedReviewVersionIds((prev) => {
           const next = new Set(prev);
           next.delete(version.id);
           return next;
         });
-        await reload();
+        await reload({ silent: true });
       } finally {
         setReviewBusy(false);
       }
     },
-    [user, reload]
+    [userId, reload]
   );
 
   const recalibrate = useCallback(
     async (quest, version) => {
       await recalibrateQuest(quest, version);
-      await reload();
+      await reload({ silent: true });
     },
     [reload]
   );
@@ -206,7 +275,7 @@ export function useQuests() {
   const removeQuest = useCallback(
     async (questId) => {
       await deactivateQuest(questId);
-      await reload();
+      await reload({ silent: true });
     },
     [reload]
   );
@@ -226,23 +295,55 @@ export function useQuests() {
 
   const recordMiss = useCallback(
     async (reason) => {
-      if (!user || !missDialog) return;
-      await recordQuestMiss({
-        userId: user.id,
-        quest: missDialog.quest,
-        version: missDialog.version,
-        reasonCode: reason.code,
-        reasonLabel: reason.label
+      if (!userId || !missDialog) return;
+
+      const { quest, version } = missDialog;
+      const optimisticMiss = {
+        id: `optimistic-miss-${quest.id}`,
+        quest_version_id: version.id,
+        user_id: userId,
+        completed_at: new Date().toISOString(),
+        evidence: {
+          type: 'miss',
+          reasonCode: reason.code,
+          reasonLabel: reason.label
+        },
+        xp_awarded: 0,
+        flagged: false
+      };
+
+      setItems((prev) => {
+        const next = prev.map((item) =>
+          item.quest.id === quest.id
+            ? { ...item, completions: [optimisticMiss, ...item.completions] }
+            : item
+        );
+        if (userId) setCachedQuests(userId, next);
+        return next;
       });
-      setMissDialog(null);
-      await reload();
+
+      try {
+        await recordQuestMiss({
+          userId,
+          quest,
+          version,
+          reasonCode: reason.code,
+          reasonLabel: reason.label
+        });
+        setMissDialog(null);
+        await reload({ silent: true });
+      } catch (err) {
+        await reload({ silent: true });
+        throw err;
+      }
     },
-    [user, missDialog, reload]
+    [userId, missDialog, reload]
   );
 
   return {
     items,
     loading,
+    refreshing,
     error,
     evolutionNotice,
     periodReview,

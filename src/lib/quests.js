@@ -69,6 +69,57 @@ export function isDailyPendingToday(quest, completions) {
   return !hasCompletionToday(completions) && !hasMissToday(completions);
 }
 
+/** @typedef {'pending_today' | 'missed_today' | 'done_today' | 'recurring'} QuestDisplayBucket */
+
+/**
+ * @param {object} item
+ * @returns {QuestDisplayBucket}
+ */
+export function getQuestDisplayBucket(item) {
+  const { quest, completions } = item;
+  if (quest.quest_type === 'daily') {
+    if (hasCompletionToday(completions)) return 'done_today';
+    if (hasMissToday(completions)) return 'missed_today';
+    return 'pending_today';
+  }
+  return 'recurring';
+}
+
+const DISPLAY_BUCKET_ORDER = {
+  pending_today: 0,
+  recurring: 1,
+  missed_today: 2,
+  done_today: 3
+};
+
+/**
+ * Pendentes primeiro; concluídas hoje no fim da lista.
+ * @param {object[]} items
+ */
+export function sortQuestItemsForDisplay(items) {
+  return [...items].sort((a, b) => {
+    const orderA = DISPLAY_BUCKET_ORDER[getQuestDisplayBucket(a)] ?? 1;
+    const orderB = DISPLAY_BUCKET_ORDER[getQuestDisplayBucket(b)] ?? 1;
+    if (orderA !== orderB) return orderA - orderB;
+    return (a.quest.title ?? '').localeCompare(b.quest.title ?? '', 'pt-BR');
+  });
+}
+
+/**
+ * @param {object[]} items
+ */
+export function getDailyQuestProgress(items) {
+  const dailies = items.filter((item) => item.quest.quest_type === 'daily');
+  const done = dailies.filter((item) => hasCompletionToday(item.completions)).length;
+  const missed = dailies.filter((item) => hasMissToday(item.completions)).length;
+  return {
+    total: dailies.length,
+    done,
+    missed,
+    pending: dailies.length - done - missed
+  };
+}
+
 /**
  * @param {object} version
  * @param {import('./habitFrameworks.js').HabitFrameworkId | undefined | null} [frameworkId]

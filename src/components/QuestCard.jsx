@@ -27,6 +27,7 @@ import QuestMissDialog from './QuestMissDialog.jsx';
  * @param {(reason: { code: string, label: string }) => Promise<void>} [props.onRecordMiss]
  * @param {boolean} [props.hasLinkedCard]
  * @param {(quest: object, version: object) => Promise<void>} [props.onCreateFlashcard]
+ * @param {import('../lib/quests.js').QuestDisplayBucket} [props.dayStatus]
  */
 export default function QuestCard({
   item,
@@ -37,7 +38,8 @@ export default function QuestCard({
   onOpenMiss,
   onRecordMiss,
   hasLinkedCard,
-  onCreateFlashcard
+  onCreateFlashcard,
+  dayStatus
 }) {
   const { quest, version, completions } = item;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -136,7 +138,27 @@ export default function QuestCard({
 
   return (
     <>
-      <article className="card quest-card" aria-labelledby={`quest-${quest.id}`}>
+      <article
+        className={[
+          'card',
+          'quest-card',
+          dayStatus === 'done_today' && 'quest-card--done-today',
+          dayStatus === 'missed_today' && 'quest-card--missed-today'
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-labelledby={`quest-${quest.id}`}
+      >
+        {dayStatus === 'done_today' && (
+          <p className="quest-day-badge quest-day-badge--done" role="status">
+            Feita hoje
+          </p>
+        )}
+        {dayStatus === 'missed_today' && (
+          <p className="quest-day-badge quest-day-badge--miss" role="status">
+            Não feita hoje
+          </p>
+        )}
         <header className="quest-card-header">
           <div>
             <h3 id={`quest-${quest.id}`}>{quest.title}</h3>

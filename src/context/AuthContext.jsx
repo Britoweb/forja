@@ -9,19 +9,34 @@ export function AuthProvider({ children }) {
   const supabase = getSupabase();
 
   useEffect(() => {
+    let active = true;
+
     supabase.auth.getSession().then(({ data: { session: current } }) => {
+      if (!active) return;
       setSession(current);
       setLoading(false);
     });
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!active) return;
+
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(nextSession);
+        return;
+      }
+
       setSession(nextSession);
-      setLoading(false);
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [supabase]);
 
   const value = useMemo(

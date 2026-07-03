@@ -4,8 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Layout from './components/Layout.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-
-const QuestsPage = lazy(() => import('./pages/QuestsPage.jsx'));
+import QuestsPage from './pages/QuestsPage.jsx';
 const FlashcardsPage = lazy(() => import('./pages/FlashcardsPage.jsx'));
 const ReflectionsPage = lazy(() => import('./pages/ReflectionsPage.jsx'));
 const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
@@ -30,14 +29,7 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route
-          path="quests"
-          element={
-            <Suspense fallback={<PageLoader />}>
-              <QuestsPage />
-            </Suspense>
-          }
-        />
+        <Route path="quests" element={<QuestsPage />} />
         <Route
           path="flashcards"
           element={

@@ -656,7 +656,102 @@ a {
 .quests-page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
+}
+
+.hero--compact {
+  margin-bottom: 0;
+}
+
+.hero--compact h1 {
+  margin-bottom: var(--space-2);
+}
+
+.quests-today-summary {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+
+.quests-refresh-hint {
+  font-size: 0.8125rem;
+}
+
+.quests-inline-error {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.quests-section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.quests-section {
+  gap: var(--space-3);
+}
+
+.quests-done-details,
+.quests-secondary-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.quests-done-details summary,
+.quests-secondary-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--tap-target-min);
+  display: flex;
+  align-items: center;
+  list-style: none;
+}
+
+.quests-done-details summary::-webkit-details-marker,
+.quests-secondary-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.quests-done-details .quest-list,
+.quests-secondary-body {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.quests-all-done {
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.quest-card--done-today {
+  opacity: 0.72;
+  border-color: color-mix(in srgb, var(--accent-text) 25%, var(--border));
+}
+
+.quest-card--missed-today {
+  opacity: 0.85;
+}
+
+.quest-day-badge {
+  margin: 0 0 var(--space-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quest-day-badge--done {
+  color: var(--accent-text);
+}
+
+.quest-day-badge--miss {
+  color: var(--text-secondary);
 }
 
 .quests-page .section {
