@@ -4,6 +4,7 @@
  */
 
 import { getPeriodDays, getSuccessThreshold } from './habitFrameworks.js';
+import { getQuestTimeSlotGroup, getTimeSlotGroupOrder } from './questTimeSlots.js';
 
 export const QUEST_CATEGORIES = {
   physical: 'Físico',
@@ -101,6 +102,11 @@ export function sortQuestItemsForDisplay(items) {
     const orderA = DISPLAY_BUCKET_ORDER[getQuestDisplayBucket(a)] ?? 1;
     const orderB = DISPLAY_BUCKET_ORDER[getQuestDisplayBucket(b)] ?? 1;
     if (orderA !== orderB) return orderA - orderB;
+
+    const slotA = getTimeSlotGroupOrder(getQuestTimeSlotGroup(a));
+    const slotB = getTimeSlotGroupOrder(getQuestTimeSlotGroup(b));
+    if (slotA !== slotB) return slotA - slotB;
+
     return (a.quest.title ?? '').localeCompare(b.quest.title ?? '', 'pt-BR');
   });
 }

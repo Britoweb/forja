@@ -693,6 +693,27 @@ a {
   gap: var(--space-3);
 }
 
+.quests-timeslot-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.quests-timeslot-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.quests-timeslot-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
 .quests-done-details,
 .quests-secondary-details {
   border: 1px solid var(--border);

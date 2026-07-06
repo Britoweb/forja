@@ -5,6 +5,7 @@ import PeriodReviewDialog from '../components/PeriodReviewDialog.jsx';
 import QuestCard from '../components/QuestCard.jsx';
 import QuestForm from '../components/QuestForm.jsx';
 import QuestMissDialog from '../components/QuestMissDialog.jsx';
+import QuestTimeSlotGroups from '../components/QuestTimeSlotGroups.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useFlashcards } from '../hooks/useFlashcards.js';
 import { useQuests } from '../hooks/useQuests.js';
@@ -152,11 +153,7 @@ export default function QuestsPage() {
               <h2 id="quests-pending-heading" className="quests-section-title">
                 Para hoje ({pendingItems.length})
               </h2>
-              <ul className="quest-list" role="list">
-                {pendingItems.map((item) => (
-                  <li key={item.quest.id}>{renderQuestCard(item)}</li>
-                ))}
-              </ul>
+              <QuestTimeSlotGroups items={pendingItems} renderItem={renderQuestCard} />
             </section>
           )}
 
@@ -165,11 +162,7 @@ export default function QuestsPage() {
               <h2 id="quests-other-heading" className="quests-section-title">
                 {pendingItems.length === 0 ? 'Suas quests' : 'Semanais e outras'} ({otherItems.length})
               </h2>
-              <ul className="quest-list" role="list">
-                {otherItems.map((item) => (
-                  <li key={item.quest.id}>{renderQuestCard(item)}</li>
-                ))}
-              </ul>
+              <QuestTimeSlotGroups items={otherItems} renderItem={renderQuestCard} />
             </section>
           )}
 
@@ -178,11 +171,7 @@ export default function QuestsPage() {
               <summary>
                 Feitas hoje ({doneTodayItems.length})
               </summary>
-              <ul className="quest-list" role="list">
-                {doneTodayItems.map((item) => (
-                  <li key={item.quest.id}>{renderQuestCard(item)}</li>
-                ))}
-              </ul>
+              <QuestTimeSlotGroups items={doneTodayItems} renderItem={renderQuestCard} />
             </details>
           )}
 
