@@ -51,7 +51,7 @@ export default function QuestCompletionDialog({ open, quest, onClose, onSubmit }
     <ModalDialog open={open} title={`Concluir: ${quest?.title ?? ''}`} onClose={onClose}>
       <form className="quest-form" onSubmit={handleSubmit}>
         <p className="muted">Registre evidência do que foi feito. Seja específico — datas, números ou nomes.</p>
-        <div>
+        <div className="form-field">
           <label htmlFor={evidenceId}>Evidência</label>
           <textarea
             id={evidenceId}

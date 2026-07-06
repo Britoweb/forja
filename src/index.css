@@ -991,6 +991,10 @@ a {
 .quest-form input,
 .quest-form select,
 .quest-form textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   min-height: var(--tap-target-min);
   padding: var(--space-3);
   border-radius: 8px;
@@ -1046,12 +1050,20 @@ a {
 
 .modal-inner {
   width: min(480px, calc(100vw - var(--space-8)));
+  max-width: 100%;
   margin: auto;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: var(--space-4);
   color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.modal-inner .quest-form,
+.modal-inner .form-field {
+  width: 100%;
+  min-width: 0;
 }
 
 .modal-header {
