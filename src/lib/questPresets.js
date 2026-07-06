@@ -150,12 +150,15 @@ export const QUEST_PRESETS = [
     source: 'Sêneca, Carta 83',
     title: 'Exame da consciência',
     description:
-      'Três perguntas de Sêneca: que mal curei? que paixão resisti? que dever negligenciei?',
+      'Três perguntas: que hábito curou, que vício conteve, em que aspecto melhorou.',
     category: 'intellectual',
     timeSlot: 'evening',
     wakeDependent: false,
     framework: 'stoic_discipline',
-    target: 'Responder por escrito às 3 perguntas do exame sênecano',
+    target: `Responder por escrito:
+1. Que hábito ruim você curou hoje?
+2. Que vício você conteve?
+3. Em que aspecto você melhorou?`,
     validation: 'Registrei as três respostas',
     streakRequired: 28
   },

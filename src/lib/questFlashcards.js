@@ -34,8 +34,15 @@ export const PRESET_FLASHCARDS = {
     back: 'O tempo é finito. Urgência honesta — não drama — para agir com integridade.'
   },
   stoic_evening_examen: {
-    front: 'Exame sênecano: como foi meu dia?',
-    back: 'Que mal curei? Que paixão resisti? Que dever negligenciei? Respondo sem auto-flagelo.'
+    front: 'Exame da consciência — quais são as 3 perguntas da noite?',
+    back: `1. Que hábito ruim você curou hoje?
+(Qual vício você realmente trabalhou e conseguiu frear)
+
+2. Que vício você conteve?
+(Quais impulsos ou fraquezas você reconheceu e não cedeu)
+
+3. Em que aspecto você melhorou?
+(Onde você foi melhor que ontem, por menor que seja)`
   },
   stoic_view_from_above: {
     front: 'Estou dramatizando este problema?',
